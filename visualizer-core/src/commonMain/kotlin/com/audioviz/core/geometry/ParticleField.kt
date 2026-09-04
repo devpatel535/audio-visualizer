@@ -33,8 +33,8 @@ data class ParticleFieldConfig(
     /** Radial offset from the emitter outline where particles are born. */
     val spawnOffset: Float = 0.02f,
 
-    val minSize: Float = 0.006f,
-    val maxSize: Float = 0.022f,
+    val minSize: Float = 0.009f,
+    val maxSize: Float = 0.030f,
 )
 
 /**

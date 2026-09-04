@@ -74,7 +74,7 @@ like speech.
 ## Automated
 
 ```bash
-./gradlew checkPortable   # 45 unit tests + every Maven-Central-only target
+./gradlew checkPortable   # 47 unit tests + every Maven-Central-only target
 ./gradlew checkAll        # the above plus the desktop targets and the shader test
 ```
 
@@ -121,6 +121,29 @@ averaged over the last 9 seconds of a 12-second run at 60 fps:
 Read it as the design brief in numbers: **scale moves 7% across the whole dynamic range while
 deformation moves 480% and glow moves 800%.** Colour never moves more than 0.002 in a frame.
 Nothing reaches 1.0 even at −3 dBFS, so there is always headroom left for an emphasis.
+
+## Visual inspection without a device
+
+```bash
+./gradlew :preview-tool:renderPreview     # -> preview-tool/build/preview/*.png
+./gradlew :preview-tool:updateDocImages   # -> docs/images/*.png (the committed set)
+```
+
+`preview-tool` drives the real analyzer, the real controller and the real geometry, then
+rasterises the result with Java2D. It depends only on `visualizer-core` and a JDK — no
+Compose, no Android SDK, no display — so it runs in CI and its output can be attached to a
+pull request.
+
+It renders three contact sheets: response across four input levels, five shapes through the
+identical pipeline, and idle behaviour across the three palettes. Reviewing tuning changes as
+a before/after image pair catches things no assertion will: the un-normalised superformula
+drawing at 2.4× the size of every other shape, a `softness` blend that cancelled a star into a
+circle, a rim that read as a hard outline, and a specular highlight floating off the body on
+concave geometry were all found this way and all fixed.
+
+It is a development tool, not a second renderer. It shares the geometry, motion and colour with
+the Compose renderers — which is the part worth looking at — but if the two ever disagree about
+*drawing*, the Compose one is correct.
 
 ### Adding a regression test for your own tuning
 

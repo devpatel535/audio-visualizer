@@ -39,6 +39,9 @@ tasks.register("checkPortable") {
         ":visualizer-audio:compileKotlinWasmJs",
         ":visualizer-compose:compileKotlinWasmJs",
         ":demo-app:compileKotlinWasmJs",
+        // Rasterises the whole pipeline headlessly; a smoke test as well as a
+        // way to eyeball a tuning change.
+        ":preview-tool:renderPreview",
     )
 }
 

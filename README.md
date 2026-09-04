@@ -27,6 +27,35 @@ drawn. A circle is one renderer among several, not the foundation.
 | Performance considerations | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) |
 | Configuration parameters | [docs/TUNING.md](docs/TUNING.md) |
 | Testing with speech | [docs/TESTING.md](docs/TESTING.md) |
+| What it actually looks like | [rendered contact sheets](#what-it-looks-like) |
+
+---
+
+## What it looks like
+
+These are rendered from the real pipeline — synthetic speech through the real analyzer,
+the real animation controller and the real geometry — by `./gradlew :preview-tool:renderPreview`,
+headlessly, with no display and no device.
+
+**Response to input level.** One row per level, six frames across about two seconds. Reading
+down a column shows how the same instant differs with loudness; reading across shows the motion.
+
+![Response to input level](docs/images/response.png)
+
+Note what changes and what does not: colour travels from deep navy to ice blue, glow and
+deformation grow steadily, particles appear — and the object is barely larger at −14 dBFS than
+at −42. Scale moves 7% across the whole range while deformation moves 480%.
+
+**The same pipeline, five different shapes.** Every row is the identical analyzer, controller,
+motion field and palette. Only the `RadialShape` differs, and only at the call site.
+
+![Five shapes through one pipeline](docs/images/shapes.png)
+
+**Idle, across the three bundled palettes.** Twelve seconds of complete silence, sampled every
+two seconds. The visual parameters are constant here — all of this motion comes from the shared
+noise field and the breath oscillators.
+
+![Idle behaviour](docs/images/idle.png)
 
 ---
 
@@ -89,6 +118,7 @@ No other file changes. See [docs/ADDING_A_SHAPE.md](docs/ADDING_A_SHAPE.md).
 ./gradlew :demo-app:wasmJsBrowserDevelopmentRun   # web, opens a browser
 ./gradlew :demo-app:installDebug -Pviz.android=true   # Android device
 ./gradlew checkAll                            # compile everything + run the tests
+./gradlew :preview-tool:renderPreview         # PNG contact sheets, no display needed
 ```
 
 The demo exposes every tuning knob live — renderer, palette, character preset, sensitivity,
@@ -163,9 +193,14 @@ visualizer-compose       rendering — knows nothing about microphones
     └── ShaderGlowRenderer.kt    GPU aura, with a Canvas fallback
 
 demo-app                 sample application for all three platforms
+
+preview-tool             headless Java2D renderer for the contact sheets above.
+                         Depends only on visualizer-core and a JDK -- no Compose,
+                         no Android SDK -- so the geometry can be inspected in CI
+                         and in code review.
 ```
 
-**7,700 lines of Kotlin**, of which ~1,100 are tests.
+**~8,600 lines of Kotlin**, of which ~1,200 are tests.
 
 ---
 
@@ -217,7 +252,7 @@ it stops responding exactly when the user is being most emphatic.
 ## Verification
 
 ```bash
-./gradlew checkPortable   # 45 unit tests + every Maven-Central-only target
+./gradlew checkPortable   # 47 unit tests + every Maven-Central-only target
 ./gradlew checkAll        # the above, plus the desktop targets
 ```
 
@@ -234,9 +269,10 @@ The test suite is not incidental — it is how the tuning above is held in place
   whole chain and asserts monotonic response, that silence is calm but still moving, that
   glow and colour cannot step faster than their rate limits, that behaviour is identical at
   30/60/120 fps, and — explicitly — that deformation out-responds scale by more than 5:1.
-- `GeometryTest` checks that every built-in shape is periodic and positive, that the outline
-  has no seam at the wrap point, that it keeps moving in silence, and that particles respect
-  their capacity and get recycled.
+- `GeometryTest` checks that every built-in shape is periodic, positive and **peaks at exactly
+  1** so shapes are interchangeable, that a star stays star-shaped at every softness, that the
+  outline has no seam at the wrap point, that it keeps moving in silence, and that particles
+  respect their capacity and get recycled.
 - `ShaderCompilationTest` compiles the bundled shader with the real Skia SkSL compiler, so a
   typo in the shader string is a build failure rather than a silently missing layer.
 

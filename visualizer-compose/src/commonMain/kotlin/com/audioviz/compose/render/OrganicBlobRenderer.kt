@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import com.audioviz.core.geometry.PolarProfile
 import com.audioviz.core.geometry.PolarProfileConfig
@@ -194,21 +195,27 @@ class OrganicBlobRenderer(
             // completely still, even in total silence.
             val specularRadius = maxRadius * lerp(0.30f, 0.46f, params.glow) *
                 lerp(0.955f, 1.045f, params.breath)
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        palette.highlight.copy(
-                            alpha = 0.28f + 0.34f * params.glow + 0.10f * params.energy,
+            // Clipped to the body: on a concave shape (a star, a traced logo)
+            // the light position can fall outside the outline, and an unclipped
+            // highlight then floats on the background as a grey smudge. A
+            // specular belongs *on* the surface.
+            clipPath(bodyPath) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            palette.highlight.copy(
+                                alpha = 0.28f + 0.34f * params.glow + 0.10f * params.energy,
+                            ),
+                            Color.Transparent,
                         ),
-                        Color.Transparent,
+                        center = lightCenter,
+                        radius = specularRadius,
                     ),
-                    center = lightCenter,
                     radius = specularRadius,
-                ),
-                radius = specularRadius,
-                center = lightCenter,
-                alpha = params.opacity,
-            )
+                    center = lightCenter,
+                    alpha = params.opacity,
+                )
+            }
         }
 
         if (cfg.drawRim) {
@@ -222,7 +229,7 @@ class OrganicBlobRenderer(
             drawPath(
                 path = bodyPath,
                 color = palette.highlight,
-                alpha = params.opacity * (0.25f + 0.55f * params.glow) / softness,
+                alpha = params.opacity * (0.14f + 0.38f * params.glow) / softness,
                 style = Stroke(width = width),
             )
         }
@@ -305,15 +312,17 @@ class OrganicBlobRenderer(
             // that is moving, so it carries the sense of a living object.
             val idleBreath = 1f + 0.05f * (params.breath * 2f - 1f) * (0.35f + 0.65f * params.idle)
             val shrink = lerp(0.82f, 0.34f, t) * idleBreath
-            val layer = 5.5f + contour * 2.3f
-            val wobble = 0.10f * detail * (0.6f + 0.6f * t)
+            val layer = 5.5f + contour * 4.7f
+            val wobble = 0.20f * detail * (0.6f + 0.6f * t)
 
             for (i in 0 until n) {
+                // Three octaves and a well-separated layer, so a contour is
+                // its own shape rather than a scaled copy of the outline.
                 val offset = frame.field.loopAt(
                     profile.sampleCosTable[i],
                     profile.sampleSinTable[i],
                     layer,
-                    octaves = 2,
+                    octaves = 3,
                 ) * wobble
                 pixelRadii[i] = profile.radii[i] * radius * shrink * (1f + offset)
             }

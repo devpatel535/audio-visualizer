@@ -40,9 +40,24 @@ val teardrop = RadialShape { theta ->
 }
 ```
 
-Requirements: 2π-periodic, strictly positive, and roughly order-1 in magnitude (the reference
-radius scales it). `GeometryTest.everyBuiltInShapeIsPeriodicAndPositive` checks these for the
-built-ins; the same test is worth extending for your own.
+Requirements: **2π-periodic, strictly positive, and peaking at exactly 1.**
+
+The maximum is what makes shapes interchangeable — every built-in touches 1 at its widest
+point, so swapping one for another keeps the visual the same size on screen without retuning
+`radiusFraction`. If your definition has no convenient closed-form maximum, wrap it:
+
+```kotlin
+val mine = RadialShapes.normalized(RadialShape { theta -> /* anything */ })
+```
+
+`normalized` samples 1,440 angles once at construction and scales by the peak. The
+superellipse, the superformula and `sampled` all use it internally, so you rarely need it
+directly.
+
+`GeometryTest.everyBuiltInShapePeaksAtOne` and `everyBuiltInShapeIsPeriodicAndPositive` check
+this for the built-ins; both are worth extending for your own. They are not academic — the
+superformula shipped un-normalised at first and drew at 2.4× the size of every other shape,
+which only became obvious once the contact sheets were rendered.
 
 ### Importing an SVG path or a traced logo
 
@@ -69,6 +84,8 @@ fun outlineToRadii(path: List<Offset>, samples: Int = 256): FloatArray {
     return radii
 }
 ```
+
+`RadialShapes.sampled` normalises for you, so the table can be in any units.
 
 This only works for outlines that are *star-shaped about their centroid* — every ray from the
 centre crosses the boundary once. Most logos and glyphs qualify. Anything with a concave

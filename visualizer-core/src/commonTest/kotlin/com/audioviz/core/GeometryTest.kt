@@ -48,6 +48,64 @@ class GeometryTest {
         }
     }
 
+    @Test
+    fun everyBuiltInShapePeaksAtOne() {
+        // The interchangeability contract: swapping a shape must not change how
+        // large the visual is on screen. Caught the un-normalised superformula,
+        // which peaked above 2 and drew twice the size of everything else.
+        val shapes = mapOf(
+            "circle" to RadialShapes.Circle,
+            "squircle" to RadialShapes.superellipse(4.2f),
+            "hexagon" to RadialShapes.polygon(6),
+            "triangle" to RadialShapes.polygon(3, cornerSoftness = 0f),
+            "star" to RadialShapes.star(6),
+            "superformula" to RadialShapes.superformula(),
+            "flower" to RadialShapes.superformula(m = 6f, n1 = 1f, n2 = 1f, n3 = 1f),
+            "sampled" to RadialShapes.sampled(FloatArray(64) { 4.7f + 1.9f * kotlin.math.sin(it * 0.4f) }),
+        )
+        for ((name, shape) in shapes) {
+            var peak = 0f
+            var i = 0
+            while (i < 2048) {
+                val r = shape.radiusAt(i * TWO_PI / 2048)
+                if (r > peak) peak = r
+                i++
+            }
+            assertTrue(
+                peak in 0.97f..1.03f,
+                "$name peaks at $peak; every shape must peak at 1 so they are interchangeable",
+            )
+        }
+    }
+
+    @Test
+    fun starStaysStarShapedAtEverySoftness() {
+        // Regression: the sharp and smooth terms were in antiphase, so a
+        // softness of 0.5 cancelled them and the star collapsed to a circle.
+        val points = 6
+        for (softness in listOf(0f, 0.25f, 0.5f, 0.75f, 1f)) {
+            val star = RadialShapes.star(points, innerRatio = 0.55f, softness = softness)
+            var peak = 0f
+            var trough = Float.MAX_VALUE
+            var i = 0
+            while (i < 1024) {
+                val r = star.radiusAt(i * TWO_PI / 1024)
+                if (r > peak) peak = r
+                if (r < trough) trough = r
+                i++
+            }
+            assertTrue(
+                peak - trough > 0.35f,
+                "softness $softness flattened the star (peak $peak, trough $trough)",
+            )
+            // A point must sit at theta = 0.
+            assertTrue(
+                star.radiusAt(0f) > 0.97f,
+                "softness $softness moved the point away from theta=0 (${star.radiusAt(0f)})",
+            )
+        }
+    }
+
     // ---- PolarProfile -------------------------------------------------------
 
     @Test
