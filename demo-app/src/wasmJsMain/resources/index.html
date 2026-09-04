@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Audio Reactive Visualizer</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #04070f;
+            /* The Compose canvas paints everything; this only covers the gap
+               before the Wasm module finishes loading. */
+            color: #7f95b5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        #loading {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            letter-spacing: 0.04em;
+        }
+    </style>
+</head>
+<body>
+<div id="loading">loading&hellip;</div>
+<script type="application/javascript">
+    // Remove the placeholder once Compose has attached its canvas.
+    const observer = new MutationObserver(() => {
+        if (document.querySelector('canvas')) {
+            const el = document.getElementById('loading');
+            if (el) el.remove();
+            observer.disconnect();
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+</script>
+<script src="demo.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      Declared here so that any app consuming this module inherits it through
+      manifest merging. The permission still has to be requested at runtime.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+</manifest>
