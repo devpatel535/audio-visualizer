@@ -1,6 +1,62 @@
 # Replacing the shape
 
-Three levels of effort, depending on how different the new geometry is.
+Four levels of effort, depending on how different the new geometry is.
+
+---
+
+## Level 0 — you do not need a named shape at all
+
+The default is already a free-form abstract outline. If you just want *a different one*,
+change the seed:
+
+```kotlin
+OrganicBlobRenderer(BlobRendererConfig(shape = RadialShapes.organic(seed = 4812)))
+```
+
+`organic` builds the outline from a random harmonic series,
+
+```
+r(theta) = 1 + irregularity * sum_k a_k * cos(k*theta + phi_k)
+```
+
+with amplitudes falling as `1/k` and phases drawn from the seed. The `1/k` falloff is what
+makes the result read as organic rather than as noise: large lobes dominate and fine detail
+stays subordinate, which is the spectral shape natural silhouettes have. Every seed is a
+different form and none of them is anything you have a word for.
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `seed` | — | Selects the form. Deterministic across platforms and runs. |
+| `harmonics` | 5 | How many angular components. More = busier. |
+| `irregularity` | 0.38 | 0 is exactly a circle; 0.6 is markedly amoeboid. Clamped below 0.85 so the radius can never approach zero. |
+| `lowestHarmonic` | 2 | The slowest component. 2 gives a broad two-lobed asymmetry; raise it for a rounder, busier form. |
+
+### A shape with no fixed identity
+
+```kotlin
+OrganicBlobRenderer(BlobRendererConfig(shape = RadialShapes.driftingOrganic()))
+```
+
+`driftingOrganic` (and the general `morphing(forms, secondsPerForm)`) returns a
+[`DynamicRadialShape`] — an outline that redefines itself every frame, travelling
+continuously between forms with a quintic ease so the hand-over has no perceptible corner. It
+is the strongest statement the architecture makes: the outline is not a circle, not a star,
+not even one abstract form, and the analyzer, controller and renderer are all unchanged and
+unaware.
+
+`PolarProfile` detects a dynamic shape and re-samples it every frame instead of caching it.
+That costs `sampleCount` extra evaluations per frame — real, and paid only when you opt in.
+
+```kotlin
+// Anything can be dynamic, not just the bundled morph.
+class PulsingShape : DynamicRadialShape {
+    private var squash = 1f
+    override fun advance(params: VisualParams) {
+        squash = 1f + 0.2f * params.breath
+    }
+    override fun radiusAt(theta: Float) = 1f / (1f + (squash - 1f) * abs(sin(theta)))
+}
+```
 
 ---
 
@@ -24,6 +80,8 @@ Built in and ready to use:
 
 | Shape | Call |
 |---|---|
+| Free-form (default) | `RadialShapes.Organic`, `RadialShapes.organic(seed)` |
+| Morphing, no fixed form | `RadialShapes.driftingOrganic()`, `RadialShapes.morphing(forms)` |
 | Circle | `RadialShapes.Circle` |
 | Squircle / superellipse | `RadialShapes.superellipse(exponent = 4f)` |
 | Regular polygon | `RadialShapes.polygon(sides = 6, cornerSoftness = 0.12f)` |

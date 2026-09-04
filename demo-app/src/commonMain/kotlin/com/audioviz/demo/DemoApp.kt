@@ -62,7 +62,7 @@ import com.audioviz.core.capture.SyntheticAudioSource
 @Composable
 fun DemoApp() {
     MaterialTheme(colorScheme = darkColorScheme()) {
-        var renderer by remember { mutableStateOf(DemoRenderer.BLOB) }
+        var renderer by remember { mutableStateOf(DemoRenderer.FREE_FORM) }
         var palette by remember { mutableStateOf(DemoPalette.OCEAN) }
         var character by remember { mutableStateOf(DemoCharacter.DEFAULT) }
         var sourceKind by remember { mutableStateOf(DemoSource.MICROPHONE) }

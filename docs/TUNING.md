@@ -206,6 +206,25 @@ configured values.
 
 ---
 
+## Shape
+
+`BlobRendererConfig.shape` defaults to `RadialShapes.Organic`, a free-form abstract outline.
+It is not a circle, and nothing in the system assumes it is one.
+
+| Want | Use |
+|---|---|
+| A different abstract form | `RadialShapes.organic(seed = ...)` |
+| Rounder / lumpier | `organic(irregularity = 0.2f)` / `organic(irregularity = 0.6f)` |
+| Busier outline | `organic(harmonics = 8, lowestHarmonic = 3)` |
+| An outline that never settles | `RadialShapes.driftingOrganic(count, secondsPerForm)` |
+| A neutral reference | `RadialShapes.Circle` |
+| A named primitive | `polygon`, `star`, `superellipse`, `superformula` |
+| A designer's outline | `RadialShapes.sampled(radii)` |
+
+Shapes with flat sides show deformation far more than round ones, so lower
+`PolarProfileConfig.deformationStrength` when you switch to a polygon or a star — the demo
+uses 0.16 and 0.15 against the default 0.22.
+
 ## Renderer configs
 
 `BlobRendererConfig` — `shape`, `sampleCount`, `glowLayers` (3), `innerContours` (2),

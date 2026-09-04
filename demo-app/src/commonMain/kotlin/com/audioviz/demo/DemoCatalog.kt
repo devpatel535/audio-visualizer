@@ -24,18 +24,31 @@ import com.audioviz.core.geometry.RadialShapes
  * at all; one is a stack of three cooperating layers.
  */
 enum class DemoRenderer(val label: String, val description: String) {
-    BLOB("Blob", "Circle base + organic deformation"),
+    FREE_FORM("Free-form", "An abstract outline with no name. The default."),
+    FREE_FORM_B("Free-form II", "Another seed. Same code, different creature."),
+    DRIFTING("Drifting", "No fixed identity: morphs between forms forever"),
+    BLOB("Circle", "The neutral base, for comparison"),
     HEXAGON("Hexagon", "Same pipeline, polygon base"),
     STAR("Star", "Same pipeline, 6-point star base"),
     SQUIRCLE("Squircle", "Same pipeline, superellipse base"),
     FLOWER("Superformula", "Same pipeline, Gielis curve base"),
     RIBBON("Ribbon", "Not radial at all: a waveform"),
-    FULL_STACK("Full stack", "GPU aura + particles + blob"),
+    FULL_STACK("Full stack", "GPU aura + particles + free-form body"),
     ;
 
     /** Builds a fresh renderer. Called when the selection changes. */
     fun create(): ShapeRenderer = when (this) {
-        BLOB -> OrganicBlobRenderer()
+        FREE_FORM -> OrganicBlobRenderer()
+
+        FREE_FORM_B -> OrganicBlobRenderer(
+            BlobRendererConfig(shape = RadialShapes.organic(seed = 4_812, irregularity = 0.46f)),
+        )
+
+        DRIFTING -> OrganicBlobRenderer(
+            BlobRendererConfig(shape = RadialShapes.driftingOrganic(count = 5, secondsPerForm = 9f)),
+        )
+
+        BLOB -> OrganicBlobRenderer(BlobRendererConfig(shape = RadialShapes.Circle))
 
         HEXAGON -> OrganicBlobRenderer(
             BlobRendererConfig(

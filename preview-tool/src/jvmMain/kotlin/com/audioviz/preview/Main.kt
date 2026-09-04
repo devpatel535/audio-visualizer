@@ -33,11 +33,74 @@ private const val GUTTER = 150
 fun main(args: Array<String>) {
     val outputDir = File(args.firstOrNull() ?: "build/preview").apply { mkdirs() }
 
+    renderFreeFormSheet(File(outputDir, "freeform.png"))
     renderResponseSheet(File(outputDir, "response.png"))
     renderShapeSheet(File(outputDir, "shapes.png"))
     renderIdleSheet(File(outputDir, "idle.png"))
 
     println("wrote contact sheets to ${outputDir.absolutePath}")
+}
+
+/**
+ * Free-form outlines: five generated seeds, plus one that never settles.
+ *
+ * None of these is a circle, a polygon or a star, and none of them has a name.
+ * The last row is a single [RadialShapes.driftingOrganic] sampled across a
+ * minute, morphing continuously between forms — the same renderer, the same
+ * controller, the same everything.
+ */
+private fun renderFreeFormSheet(target: File) {
+    val columns = 5
+    val framesBetween = 24
+    val seeds = listOf(20_250_904, 4_812, 71, 990_331, 12)
+
+    val rows = seeds.size + 1
+    val sheet = newSheet(GUTTER + columns * CELL, rows * CELL)
+    val g = sheet.createGraphics().withQualityHints()
+    val fill = speech(-24f)
+
+    seeds.forEachIndexed { row, seed ->
+        val driver = Driver()
+        val painter = BlobPainter(RadialShapes.organic(seed = seed), VisualPalette.OceanBlue)
+        repeat((4f * 60).toInt()) { painter.advance(driver.step(fill)) }
+        for (column in 0 until columns) {
+            var params = driver.step(fill)
+            painter.advance(params)
+            repeat(framesBetween - 1) {
+                params = driver.step(fill)
+                painter.advance(params)
+            }
+            val cell = g.create(GUTTER + column * CELL, row * CELL, CELL, CELL) as Graphics2D
+            painter.paint(cell, params, CELL, CELL)
+            cell.dispose()
+        }
+        g.drawLabel("seed $seed", 16, row * CELL + CELL / 2)
+    }
+
+    // The drifting row is sampled far apart so the morph is visible.
+    val row = seeds.size
+    val driver = Driver()
+    val painter = BlobPainter(
+        RadialShapes.driftingOrganic(count = 5, secondsPerForm = 7f),
+        VisualPalette.OceanBlue,
+    )
+    repeat((2f * 60).toInt()) { painter.advance(driver.step(fill)) }
+    for (column in 0 until columns) {
+        var params = driver.step(fill)
+        painter.advance(params)
+        repeat(7 * 60 - 1) {
+            params = driver.step(fill)
+            painter.advance(params)
+        }
+        val cell = g.create(GUTTER + column * CELL, row * CELL, CELL, CELL) as Graphics2D
+        painter.paint(cell, params, CELL, CELL)
+        cell.dispose()
+    }
+    g.drawLabel("drifting", 16, row * CELL + CELL / 2)
+
+    g.dispose()
+    ImageIO.write(sheet, "png", target)
+    println("  ${target.name}")
 }
 
 /** One row per input level; columns are successive moments. */
@@ -56,7 +119,7 @@ private fun renderResponseSheet(target: File) {
 
     levels.forEachIndexed { row, (label, fill) ->
         val driver = Driver()
-        val painter = BlobPainter(RadialShapes.Circle, VisualPalette.OceanBlue)
+        val painter = BlobPainter(RadialShapes.Organic, VisualPalette.OceanBlue)
 
         // Let the adaptive stages and the springs settle before sampling.
         repeat((4f * 60).toInt()) { painter.advance(driver.step(fill)) }
@@ -82,6 +145,7 @@ private fun renderResponseSheet(target: File) {
 /** One row per shape, identical audio and identical parameters. */
 private fun renderShapeSheet(target: File) {
     val shapes = listOf<Pair<String, RadialShape>>(
+        "free-form" to RadialShapes.Organic,
         "circle" to RadialShapes.Circle,
         "squircle" to RadialShapes.superellipse(4.2f),
         "hexagon" to RadialShapes.polygon(6, cornerSoftness = 0.18f),
@@ -140,7 +204,7 @@ private fun renderIdleSheet(target: File) {
 
     palettes.forEachIndexed { row, (label, palette) ->
         val driver = Driver()
-        val painter = BlobPainter(RadialShapes.Circle, palette)
+        val painter = BlobPainter(RadialShapes.Organic, palette)
         repeat((3f * 60).toInt()) { painter.advance(driver.step(fill)) }
 
         for (column in 0 until columns) {

@@ -25,12 +25,17 @@ data class BlobRendererConfig(
     /**
      * The base geometry.
      *
+     * Defaults to a **free-form** outline — deliberately not a circle, a
+     * polygon or anything else with a name. The system was never built around a
+     * specific shape, so its default should not be one either.
+     *
      * This single field is the whole "replace the shape" story: pass
-     * [RadialShapes.polygon], [RadialShapes.star], [RadialShapes.superformula]
-     * or [RadialShapes.sampled] with a traced outline and nothing else in the
-     * system changes.
+     * [RadialShapes.organic] with another seed, [RadialShapes.driftingOrganic]
+     * for an outline that never settles on one form at all, a named primitive
+     * like [RadialShapes.polygon], or [RadialShapes.sampled] with a traced
+     * outline — and nothing else in the system changes.
      */
-    val shape: RadialShape = RadialShapes.Circle,
+    val shape: RadialShape = RadialShapes.Organic,
 
     /** Outline samples. 128 is smooth on any display; 64 is fine on low-end hardware. */
     val sampleCount: Int = 128,

@@ -37,6 +37,21 @@ fun interface RadialShape {
     fun radiusAt(theta: Float): Float
 }
 
+/**
+ * A [RadialShape] whose definition changes over time.
+ *
+ * A static shape is sampled once and cached; a dynamic one is re-sampled every
+ * frame, so the outline itself can drift, morph or breathe independently of the
+ * audio-driven deformation on top of it.
+ *
+ * The cost is `sampleCount` extra evaluations per frame — real, but paid only
+ * when you opt in.
+ */
+interface DynamicRadialShape : RadialShape {
+    /** Advances the shape's own state. Called once per frame before sampling. */
+    fun advance(params: com.audioviz.core.anim.VisualParams)
+}
+
 /** Ready-made [RadialShape] implementations. Each is stateless and allocation-free. */
 object RadialShapes {
 
@@ -141,6 +156,105 @@ object RadialShapes {
     )
 
     /**
+     * A free-form abstract outline: no circle, no polygon, no star, nothing
+     * with a name.
+     *
+     * The outline is a random harmonic series,
+     *
+     *     r(theta) = 1 + irregularity * sum_k a_k * cos(k*theta + phi_k)
+     *
+     * with amplitudes falling as `1/k` and phases drawn at random from [seed].
+     * The `1/k` falloff is what makes the result read as organic rather than as
+     * noise: large lobes dominate, fine detail is present but subordinate — the
+     * same spectral shape that natural silhouettes have.
+     *
+     * Every seed is a different form, and none of them is a shape anyone has a
+     * name for. That is the point: the animation system never knew what it was
+     * deforming, and this is the geometry that makes it obvious.
+     *
+     * @param seed selects the form. Deterministic across platforms and runs.
+     * @param harmonics how many angular components. More = more detail.
+     * @param irregularity 0 gives a circle; 0.6 is markedly amoeboid. Clamped
+     *   below 0.85 so the radius can never approach zero.
+     * @param lowestHarmonic the slowest angular component. 2 gives a broad
+     *   two-lobed asymmetry; raise it for a rounder, busier form.
+     */
+    fun organic(
+        seed: Int = 1,
+        harmonics: Int = 5,
+        irregularity: Float = 0.38f,
+        lowestHarmonic: Int = 2,
+    ): RadialShape {
+        require(harmonics >= 1) { "Need at least one harmonic" }
+        require(lowestHarmonic >= 1) { "lowestHarmonic must be >= 1" }
+
+        val amplitude = FloatArray(harmonics)
+        val phase = FloatArray(harmonics)
+        val wave = IntArray(harmonics) { lowestHarmonic + it }
+
+        var state = if (seed == 0) 1 else seed
+        fun next(): Float {
+            state = state * 1_664_525 + 1_013_904_223
+            return ((state ushr 8) and 0xFFFFFF) / 16_777_215f
+        }
+
+        var total = 0f
+        for (i in 0 until harmonics) {
+            // 1/k falloff, jittered so no two seeds share a profile.
+            amplitude[i] = (0.45f + 0.55f * next()) / wave[i]
+            phase[i] = next() * TWO_PI
+            total += amplitude[i]
+        }
+        // Normalise the amplitudes so `irregularity` is exactly the maximum
+        // deviation from the unit radius, whatever the harmonic count.
+        if (total > 1e-6f) for (i in 0 until harmonics) amplitude[i] /= total
+
+        val strength = irregularity.coerceIn(0f, 0.85f)
+        return normalized(
+            RadialShape { theta ->
+                var sum = 0f
+                for (i in 0 until harmonics) {
+                    sum += amplitude[i] * cos(wave[i] * theta + phase[i])
+                }
+                1f + strength * sum
+            },
+        )
+    }
+
+    /** The default free-form outline. A shared instance, so configs stay comparable. */
+    val Organic: RadialShape = organic(seed = 20_250_904)
+
+    /**
+     * A shape with no fixed identity: it drifts continuously between [forms].
+     *
+     * The strongest statement the architecture can make. The outline is not a
+     * circle, not a star, not any one abstract form either — it is always
+     * somewhere between two of them, and the analyzer, the controller and the
+     * renderer are all unchanged and unaware.
+     *
+     * @param forms the outlines to travel between, in order, looping.
+     * @param secondsPerForm dwell time on each leg of the journey.
+     */
+    fun morphing(
+        forms: List<RadialShape>,
+        secondsPerForm: Float = 11f,
+    ): DynamicRadialShape {
+        require(forms.size >= 2) { "Morphing needs at least two forms" }
+        return MorphingShape(forms, secondsPerForm)
+    }
+
+    /** [morphing] over a set of generated free-form outlines. */
+    fun driftingOrganic(
+        count: Int = 4,
+        secondsPerForm: Float = 11f,
+        seed: Int = 7,
+        irregularity: Float = 0.38f,
+    ): DynamicRadialShape = morphing(
+        List(count) { organic(seed = seed * 7919 + it * 104_729, irregularity = irregularity) },
+        secondsPerForm,
+    )
+
+    /**
      * An arbitrary outline supplied as a table of radii sampled at even angles.
      *
      * This is the bridge for shapes that have no closed form — an SVG path, a
@@ -175,4 +289,38 @@ object RadialShapes {
             val a = from.radiusAt(theta)
             a + (to.radiusAt(theta) - a) * amount.coerceIn(0f, 1f)
         }
+}
+
+/**
+ * Continuously interpolates between a list of outlines.
+ *
+ * The blend uses a quintic ease rather than a linear one, so the morph has no
+ * perceptible corner as it passes from one form to the next — a linear cross-fade
+ * changes velocity abruptly at each hand-over and the eye catches it.
+ */
+private class MorphingShape(
+    private val forms: List<RadialShape>,
+    var secondsPerForm: Float,
+) : DynamicRadialShape {
+
+    private var position = 0f
+    private var index = 0
+    private var nextIndex = 1
+    private var blend = 0f
+
+    override fun advance(params: com.audioviz.core.anim.VisualParams) {
+        val dwell = secondsPerForm.coerceAtLeast(0.1f)
+        position = com.audioviz.core.util.wrap(
+            position + params.deltaTime / dwell,
+            forms.size.toFloat(),
+        )
+        index = position.toInt().coerceIn(0, forms.size - 1)
+        nextIndex = (index + 1) % forms.size
+        blend = com.audioviz.core.util.smootherStep(0f, 1f, position - index)
+    }
+
+    override fun radiusAt(theta: Float): Float {
+        val from = forms[index].radiusAt(theta)
+        return from + (forms[nextIndex].radiusAt(theta) - from) * blend
+    }
 }

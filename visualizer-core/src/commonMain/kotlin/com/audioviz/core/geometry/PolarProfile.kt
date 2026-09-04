@@ -169,7 +169,17 @@ class PolarProfile(config: PolarProfileConfig = PolarProfileConfig()) {
         val n = radii.size
         val field = params.field
 
-        if (cachedShape !== shape) {
+        // A static shape is evaluated once and cached — which matters for
+        // definitions like the superformula that cost two `pow` and two trig
+        // calls per sample. A dynamic one redefines its own outline every frame,
+        // so it is re-sampled every frame; that is the price of a shape with no
+        // fixed identity, and it is paid only when one is used.
+        val dynamic = shape as? DynamicRadialShape
+        if (dynamic != null) {
+            dynamic.advance(params)
+            for (i in 0 until n) baseRadii[i] = shape.radiusAt(i * TWO_PI / n)
+            cachedShape = null
+        } else if (cachedShape !== shape) {
             for (i in 0 until n) baseRadii[i] = shape.radiusAt(i * TWO_PI / n)
             cachedShape = shape
         }

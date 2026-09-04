@@ -7,7 +7,13 @@ the **web** (Kotlin/Wasm), with an optional GPU shader path on all three.
 The system is **shape-agnostic by construction**. The audio analysis and animation layers
 produce a vocabulary of normalized visual parameters — `intensity`, `pulse`, `deformation`,
 `turbulence`, `glow`, `rotation`, `displacement`, `energy` — and never learn what is being
-drawn. A circle is one renderer among several, not the foundation.
+drawn.
+
+The default geometry is a **free-form abstract outline with no name** — not a circle, not a
+polygon, not a star. Named primitives are supported and shipped, but only as evidence that the
+shape is interchangeable, never as the foundation. One option is a shape with no fixed
+identity at all, morphing continuously between forms while the rest of the system carries on
+unaware.
 
 ---
 
@@ -37,6 +43,12 @@ These are rendered from the real pipeline — synthetic speech through the real 
 the real animation controller and the real geometry — by `./gradlew :preview-tool:renderPreview`,
 headlessly, with no display and no device.
 
+**Free-form geometry.** Five generated seeds, plus one row that never settles on a form at
+all. None of these is a circle, a polygon or a star; none of them has a name. Every row is the
+same analyzer, the same controller, the same motion field.
+
+![Free-form outlines](docs/images/freeform.png)
+
 **Response to input level.** One row per level, six frames across about two seconds. Reading
 down a column shows how the same instant differs with loudness; reading across shows the motion.
 
@@ -46,10 +58,10 @@ Note what changes and what does not: colour travels from deep navy to ice blue, 
 deformation grow steadily, particles appear — and the object is barely larger at −14 dBFS than
 at −42. Scale moves 7% across the whole range while deformation moves 480%.
 
-**The same pipeline, five different shapes.** Every row is the identical analyzer, controller,
-motion field and palette. Only the `RadialShape` differs, and only at the call site.
+**Named primitives, for comparison.** The same pipeline again, this time through shapes that
+do have names. Included to prove interchangeability, not because the system needs them.
 
-![Five shapes through one pipeline](docs/images/shapes.png)
+![Six shapes through one pipeline](docs/images/shapes.png)
 
 **Idle, across the three bundled palettes.** Twelve seconds of complete silence, sampled every
 two seconds. The visual parameters are constant here — all of this motion comes from the shared
@@ -92,13 +104,16 @@ fun ListeningIndicator() {
 }
 ```
 
-Change the geometry by changing that one line:
+`OrganicBlobRenderer()` with no arguments draws a free-form abstract outline. Change the
+geometry by changing that one line:
 
 ```kotlin
-// a hexagon
+// a different abstract form — every seed is its own creature
+OrganicBlobRenderer(BlobRendererConfig(shape = RadialShapes.organic(seed = 4812)))
+// no fixed identity at all: morphs between forms forever
+OrganicBlobRenderer(BlobRendererConfig(shape = RadialShapes.driftingOrganic()))
+// or a named primitive, if you want one
 OrganicBlobRenderer(BlobRendererConfig(shape = RadialShapes.polygon(6)))
-// a six-point star
-OrganicBlobRenderer(BlobRendererConfig(shape = RadialShapes.star(points = 6)))
 // a traced outline from a designer
 OrganicBlobRenderer(BlobRendererConfig(shape = RadialShapes.sampled(myRadii)))
 // not radial at all
@@ -163,7 +178,9 @@ visualizer-core          pure Kotlin — no Compose, no platform APIs, fully uni
 │   ├── AnimationConfig.kt   every mapping constant, with presets
 │   └── AnimationController.kt   features -> params
 ├── geometry/
-│   ├── RadialShape.kt       circle, squircle, polygon, star, superformula, sampled
+│   ├── RadialShape.kt       free-form generator, morphing outlines, and the
+│   │                        named primitives (circle, squircle, polygon, star,
+│   │                        superformula, sampled)
 │   ├── PolarProfile.kt      shape + params -> deformed outline
 │   └── ParticleField.kt     pooled, allocation-free particle simulation
 ├── color/
@@ -200,7 +217,7 @@ preview-tool             headless Java2D renderer for the contact sheets above.
                          and in code review.
 ```
 
-**~8,600 lines of Kotlin**, of which ~1,200 are tests.
+**~9,000 lines of Kotlin**, of which ~1,400 are tests.
 
 ---
 
@@ -252,7 +269,7 @@ it stops responding exactly when the user is being most emphatic.
 ## Verification
 
 ```bash
-./gradlew checkPortable   # 47 unit tests + every Maven-Central-only target
+./gradlew checkPortable   # 52 unit tests + every Maven-Central-only target
 ./gradlew checkAll        # the above, plus the desktop targets
 ```
 
@@ -269,10 +286,12 @@ The test suite is not incidental — it is how the tuning above is held in place
   whole chain and asserts monotonic response, that silence is calm but still moving, that
   glow and colour cannot step faster than their rate limits, that behaviour is identical at
   30/60/120 fps, and — explicitly — that deformation out-responds scale by more than 5:1.
-- `GeometryTest` checks that every built-in shape is periodic, positive and **peaks at exactly
-  1** so shapes are interchangeable, that a star stays star-shaped at every softness, that the
-  outline has no seam at the wrap point, that it keeps moving in silence, and that particles
-  respect their capacity and get recycled.
+- `GeometryTest` checks that every shape — including free-form ones at arbitrary seeds — is
+  periodic, positive and **peaks at exactly 1** so shapes are interchangeable, that a star
+  stays star-shaped at every softness, that a morphing outline keeps travelling without
+  jumping and is not silently frozen by the profile's cache, that the outline has no seam at
+  the wrap point, that it keeps moving in silence, and that particles respect their capacity
+  and get recycled.
 - `ShaderCompilationTest` compiles the bundled shader with the real Skia SkSL compiler, so a
   typo in the shader string is a build failure rather than a silently missing layer.
 

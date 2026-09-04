@@ -74,7 +74,7 @@ like speech.
 ## Automated
 
 ```bash
-./gradlew checkPortable   # 47 unit tests + every Maven-Central-only target
+./gradlew checkPortable   # 52 unit tests + every Maven-Central-only target
 ./gradlew checkAll        # the above plus the desktop targets and the shader test
 ```
 
@@ -134,8 +134,9 @@ rasterises the result with Java2D. It depends only on `visualizer-core` and a JD
 Compose, no Android SDK, no display — so it runs in CI and its output can be attached to a
 pull request.
 
-It renders three contact sheets: response across four input levels, five shapes through the
-identical pipeline, and idle behaviour across the three palettes. Reviewing tuning changes as
+It renders four contact sheets: free-form outlines across five seeds plus a morphing row,
+response across four input levels, named primitives through the identical pipeline, and idle
+behaviour across the three palettes. Reviewing tuning changes as
 a before/after image pair catches things no assertion will: the un-normalised superformula
 drawing at 2.4× the size of every other shape, a `softness` blend that cancelled a star into a
 circle, a rim that read as a hard outline, and a specular highlight floating off the body on

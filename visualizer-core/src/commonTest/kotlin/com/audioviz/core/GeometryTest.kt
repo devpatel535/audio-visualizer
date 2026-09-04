@@ -106,6 +106,103 @@ class GeometryTest {
         }
     }
 
+    @Test
+    fun freeFormShapesAreValidForEverySeed() {
+        // The free-form family is generated, not hand-checked, so the contract
+        // has to hold for arbitrary seeds rather than for a curated few.
+        for (seed in listOf(1, 7, 42, -3, 20_250_904, Int.MAX_VALUE, 0)) {
+            for (irregularity in listOf(0f, 0.2f, 0.38f, 0.6f, 0.85f, 2f)) {
+                val shape = RadialShapes.organic(seed = seed, irregularity = irregularity)
+                var peak = 0f
+                var trough = Float.MAX_VALUE
+                var i = 0
+                while (i < 1024) {
+                    val r = shape.radiusAt(i * TWO_PI / 1024)
+                    assertTrue(r.isFinite() && r > 0.05f, "seed $seed gave radius $r")
+                    if (r > peak) peak = r
+                    if (r < trough) trough = r
+                    i++
+                }
+                assertTrue(peak in 0.97f..1.03f, "seed $seed peaks at $peak")
+                assertTrue(trough > 0.1f, "seed $seed collapses to $trough")
+            }
+        }
+    }
+
+    @Test
+    fun differentSeedsGiveDifferentForms() {
+        val a = RadialShapes.organic(seed = 1)
+        val b = RadialShapes.organic(seed = 2)
+        var difference = 0f
+        var i = 0
+        while (i < 512) {
+            difference += abs(a.radiusAt(i * TWO_PI / 512) - b.radiusAt(i * TWO_PI / 512))
+            i++
+        }
+        assertTrue(difference / 512 > 0.05f, "two seeds produced near-identical shapes")
+    }
+
+    @Test
+    fun zeroIrregularityIsExactlyACircle() {
+        val shape = RadialShapes.organic(seed = 99, irregularity = 0f)
+        var i = 0
+        while (i < 256) {
+            assertTrue(abs(shape.radiusAt(i * TWO_PI / 256) - 1f) < 1e-3f)
+            i++
+        }
+    }
+
+    @Test
+    fun aDriftingShapeKeepsChangingAndStaysValid() {
+        val shape = RadialShapes.driftingOrganic(count = 4, secondsPerForm = 2f)
+        val rig = PipelineRig()
+        val samples = mutableListOf<FloatArray>()
+
+        rig.run(9f, silenceFiller()) { params ->
+            shape.advance(params)
+            if (samples.size < 200) {
+                samples += FloatArray(32) { shape.radiusAt(it * TWO_PI / 32) }
+            }
+        }
+
+        for (frame in samples) {
+            for (r in frame) assertTrue(r.isFinite() && r > 0.05f, "morph produced radius $r")
+        }
+        // It must actually travel, and must do so smoothly.
+        var travelled = 0f
+        var largestStep = 0f
+        for (i in 1 until samples.size) {
+            for (j in samples[i].indices) {
+                val step = abs(samples[i][j] - samples[i - 1][j])
+                travelled += step
+                if (step > largestStep) largestStep = step
+            }
+        }
+        assertTrue(travelled > 0.5f, "the shape never morphed (total travel $travelled)")
+        assertTrue(largestStep < 0.02f, "the morph jumped (largest step $largestStep)")
+    }
+
+    @Test
+    fun profileTracksADynamicShapeInsteadOfCachingIt() {
+        // Regression guard for the base-radius cache: a dynamic shape must not
+        // be sampled once and frozen.
+        val shape = RadialShapes.driftingOrganic(count = 3, secondsPerForm = 1.5f)
+        val profile = PolarProfile(PolarProfileConfig(sampleCount = 64))
+        val rig = PipelineRig()
+
+        var first: FloatArray? = null
+        var last: FloatArray? = null
+        rig.run(4f, silenceFiller()) { params ->
+            profile.update(shape, params)
+            if (first == null) first = profile.radii.copyOf()
+            last = profile.radii.copyOf()
+        }
+
+        var difference = 0f
+        for (i in first!!.indices) difference += abs(first!![i] - last!![i])
+        assertTrue(difference > 0.2f, "the profile froze a dynamic shape (difference $difference)")
+    }
+
     // ---- PolarProfile -------------------------------------------------------
 
     @Test
