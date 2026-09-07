@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      A bare, dark, no-action-bar theme. The visualizer paints edge to edge, so
-      the window background matches the palette's background to avoid a flash
-      during the activity transition.
+      windowLayoutInDisplayCutoutMode was added in API 27, so it lives in a
+      versioned folder rather than triggering a NewApi warning in the base theme.
     -->
     <style name="Theme.AudioViz" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">#04070F</item>
         <item name="android:statusBarColor">#00000000</item>
         <item name="android:navigationBarColor">#00000000</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 </resources>

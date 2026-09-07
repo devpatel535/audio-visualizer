@@ -37,6 +37,12 @@ kotlin {
         jvmMain.get().dependsOn(skikoMain)
         wasmJsMain.get().dependsOn(skikoMain)
 
+        if (androidEnabled) {
+            androidMain.dependencies {
+                // @RequiresApi on the AGSL backend.
+                implementation(libs.androidx.annotation)
+            }
+        }
         commonMain.dependencies {
             api(project(":visualizer-core"))
             implementation(compose.runtime)
@@ -45,6 +51,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(project(":visualizer-core"))
         }
         jvmTest.dependencies {
             // Pulls in Skia, so the bundled shader is compiled by the real

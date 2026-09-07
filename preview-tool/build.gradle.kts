@@ -38,6 +38,17 @@ previewTask(
     "Renders the visualizer's geometry to PNG contact sheets (headless).",
 )
 
+tasks.register<JavaExec>("benchmarkCore") {
+    group = "verification"
+    description = "Measures visualizer-core throughput on this machine."
+    mainClass.set("com.audioviz.preview.BenchmarkKt")
+    classpath = files(
+        kotlin.jvm().compilations.getByName("main").output.allOutputs,
+        kotlin.jvm().compilations.getByName("main").runtimeDependencyFiles,
+    )
+    dependsOn("jvmMainClasses")
+}
+
 previewTask(
     "updateDocImages",
     rootProject.file("docs/images"),

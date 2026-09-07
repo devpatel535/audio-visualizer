@@ -217,7 +217,7 @@ preview-tool             headless Java2D renderer for the contact sheets above.
                          and in code review.
 ```
 
-**~9,000 lines of Kotlin**, of which ~1,400 are tests.
+**~9,600 lines of Kotlin**, of which ~1,800 are tests.
 
 ---
 
@@ -246,6 +246,22 @@ preview-tool             headless Java2D renderer for the contact sheets above.
 
 The full formulas are in [docs/MAPPING.md](docs/MAPPING.md).
 
+### Measured cost
+
+`./gradlew :preview-tool:benchmarkCore`, desktop JDK 21, median of seven trials:
+
+| Stage | Per call | Share of one core |
+|---|---|---|
+| Analyzer — 1024/512, FFT, 6 bands | 13.4 µs @ 93.8/s | 0.125 % |
+| Animation controller | 0.69 µs @ 60/s | 0.004 % |
+| Polar profile, 128 samples | 25.8 µs @ 60/s | 0.155 % |
+| Particle field, 160 particles | 18.2 µs @ 60/s | 0.109 % |
+
+Audio and render together: **0.39 % of one core**. Note the shape of it — the *geometry*
+costs roughly twice what the DSP does, which is the opposite of where the instinct to optimise
+points. Full numbers, and the three things the benchmark corrected, in
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
 ### The three ideas that make it feel premium
 
 **Everything is layered.** Every visible parameter is a sum of contributions from several
@@ -269,9 +285,16 @@ it stops responding exactly when the user is being most emphatic.
 ## Verification
 
 ```bash
-./gradlew checkPortable   # 52 unit tests + every Maven-Central-only target
-./gradlew checkAll        # the above, plus the desktop targets
+./gradlew checkPortable          # 52 tests + every Maven-Central-only target
+./gradlew checkAll               # + desktop Compose, the Skia pixel tests, and Android
+./gradlew :preview-tool:benchmarkCore   # measured throughput on this machine
 ```
+
+`checkPortable` is the subset that resolves from Maven Central alone; `checkAll`
+additionally needs Google's Maven (for the `androidx` artifacts Compose's JVM and Android
+variants depend on) and, for the Android target, an SDK. Both run on every push — see
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml), which also uploads the contact sheets
+and the debug APK as build artifacts.
 
 The test suite is not incidental — it is how the tuning above is held in place:
 
@@ -294,6 +317,12 @@ The test suite is not incidental — it is how the tuning above is held in place
   and get recycled.
 - `ShaderCompilationTest` compiles the bundled shader with the real Skia SkSL compiler, so a
   typo in the shader string is a build failure rather than a silently missing layer.
+- `RendererPixelTest` rasterises every bundled renderer into a Skia-backed `ImageBitmap` and
+  asserts on the pixels: that each one draws something and floods nothing, that louder audio
+  yields a measurably brighter frame, that three different shapes produce three different
+  images, that the palette changes the image, and that no pixel is transparent or out of
+  gamut. It deliberately avoids Compose's test clock — the frame loop is an infinite
+  `withFrameNanos` coroutine, so anything that waits for idle would hang.
 
 ---
 

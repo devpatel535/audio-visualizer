@@ -53,6 +53,9 @@ kotlin {
         if (androidEnabled) {
             androidMain.dependencies {
                 implementation(libs.androidx.activity.compose)
+                // ContextCompat.checkSelfPermission; declared rather than
+                // inherited transitively from activity-compose.
+                implementation(libs.androidx.core.ktx)
             }
         }
     }

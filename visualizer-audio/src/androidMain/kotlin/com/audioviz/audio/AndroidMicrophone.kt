@@ -52,7 +52,7 @@ class AndroidMicrophoneSource(
 
     private var record: AudioRecord? = null
     private var thread: Thread? = null
-    private var effects: MutableList<android.media.audiofx.AudioEffect> = mutableListOf()
+    private val effects = mutableListOf<android.media.audiofx.AudioEffect>()
 
     @Volatile
     private var running = false
@@ -152,12 +152,14 @@ class AndroidMicrophoneSource(
         try {
             target.startRecording()
         } catch (e: IllegalStateException) {
+            releaseEffects()
             target.release()
             status = AudioSourceStatus(AudioSourceState.ERROR, "startRecording failed: ${e.message}")
             return
         }
 
         if (target.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+            releaseEffects()
             target.release()
             status = AudioSourceStatus(
                 AudioSourceState.PERMISSION_DENIED,
@@ -181,8 +183,7 @@ class AndroidMicrophoneSource(
         thread?.join(500)
         thread = null
 
-        effects.forEach { runCatching { it.release() } }
-        effects.clear()
+        releaseEffects()
 
         record?.let { r ->
             runCatching { if (r.recordingState == AudioRecord.RECORDSTATE_RECORDING) r.stop() }
@@ -232,6 +233,11 @@ class AndroidMicrophoneSource(
                 )
             }
         }
+    }
+
+    private fun releaseEffects() {
+        effects.forEach { runCatching { it.release() } }
+        effects.clear()
     }
 
     /**

@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "master", "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Everything that resolves from Maven Central alone: the DSP and animation
+  # unit tests, and every Wasm target. This job is the one that must stay green
+  # on a restricted network, and it mirrors the environment the project was
+  # originally developed in.
+  portable:
+    name: Core tests + Wasm (Maven Central only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify
+        run: ./gradlew checkPortable -Pviz.android=false -Pviz.googleRepo=false --stacktrace
+
+      - name: Upload contact sheets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contact-sheets
+          path: preview-tool/build/preview/*.png
+          if-no-files-found: warn
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-test-reports
+          path: "**/build/reports/tests/**"
+
+  # The full matrix: desktop Compose (which pulls androidx from Google's Maven)
+  # and the Android target. This is where the Skia pixel tests and the SkSL
+  # shader compilation test actually execute, and where the Android sources are
+  # compiled and packaged.
+  full:
+    name: Desktop + Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # The ubuntu runner image ships an Android SDK and sets ANDROID_HOME, so
+      # `viz.android=auto` detects it. This makes it explicit rather than lucky.
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify everything
+        run: ./gradlew checkAll -Pviz.android=true --stacktrace
+
+      - name: Benchmark visualizer-core
+        run: ./gradlew :preview-tool:benchmarkCore -q
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-debug-apk
+          path: demo-app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-test-reports
+          path: "**/build/reports/tests/**"

@@ -74,9 +74,15 @@ like speech.
 ## Automated
 
 ```bash
-./gradlew checkPortable   # 52 unit tests + every Maven-Central-only target
-./gradlew checkAll        # the above plus the desktop targets and the shader test
+./gradlew checkPortable   # 52 tests + every Maven-Central-only target
+./gradlew checkAll        # + desktop Compose, the Skia pixel tests, and Android
 ```
+
+Both run on every push. [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) has two
+jobs: `portable`, pinned to Maven Central so it stays green on a restricted network, and
+`full`, which resolves Google's Maven and uses the runner's Android SDK to compile and package
+the Android target. The full job uploads the debug APK and the rendered contact sheets, so a
+reviewer can see what a change did without building anything.
 
 `VisualResponseTest` is the manual procedure above, executed. It drives
 `SyntheticAudioSource` — a calibrated, deterministic speech-like generator — through the real
@@ -93,6 +99,14 @@ parameters.
 | `everyParameterStaysInRangeAndFinite` | no NaN/Inf and no range escape at −60, −42, −28, −14 and −3 dBFS |
 | `adaptiveNormalizationEqualisesMicrophoneGain` | two sources 18 dB apart land within 0.18 |
 | `presetsRemainWithinTheirCharacter` | `Subtle` moves less than `Expressive` |
+
+`RendererPixelTest` closes the other gap: it draws every bundled renderer into a Skia-backed
+`ImageBitmap` and asserts on the pixels — that each draws something and floods nothing, that
+louder audio is measurably brighter, that different shapes produce different images, that the
+palette matters, and that nothing is transparent or out of gamut. It bypasses Compose's test
+clock deliberately, because the visualizer's frame loop never goes idle and anything that
+waits for idle would hang. The same source compiles for Wasm, which is how its API is verified
+on a machine that cannot resolve the JVM Compose artifacts.
 
 Supporting suites: `RealFftTest` (bin-for-bin against a naive DFT), `SmoothingTest`
 (frame-rate independence, spring stability at 8 fps, dead-band jitter rejection),

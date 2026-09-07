@@ -1,12 +1,12 @@
 # Performance
 
-> **Scope note.** The figures below are *operation counts derived from the code*, not device
-> benchmarks — no phone was available while this was built. They are useful for reasoning
-> about relative cost and for sizing the configurable dials; they are not a substitute for
-> profiling on your target hardware. Everything in "Design decisions" is verifiable by
-> reading the source.
-
----
+> **What is measured and what is not.** The tables below come from
+> `./gradlew :preview-tool:benchmarkCore`, which times `visualizer-core` on the
+> machine it runs on. They are real measurements, but on a **desktop JVM**, not a
+> phone — read them as a budget *between stages* and as a regression guard, not as
+> a device figure. Rasterisation is deliberately excluded: it happens in Skia on
+> the GPU and is device-bound, so a JVM number for it would be actively
+> misleading. Everything in "Design decisions" is verifiable by reading the source.
 
 ## Design decisions
 
@@ -69,64 +69,74 @@ estimated below.
 
 ---
 
-## Estimated cost
+## Measured cost
 
-### Audio, per analysis frame
+`./gradlew :preview-tool:benchmarkCore`, JDK 21 / x86-64, median of seven trials
+after 20,000 warm-up iterations:
 
-Default configuration: 1024-sample window, 512 hop, 6 bands, 513 bins, 93.75 frames/s at
-48 kHz.
+| Stage | Per call | Rate | Share of one core |
+|---|---|---|---|
+| Analyzer — 1024/512, FFT, 6 bands | 13.38 µs | 93.8 /s | 0.125 % |
+| Analyzer — `LevelOnly` (no FFT, no overlap) | 3.20 µs | 93.8 /s | 0.030 % |
+| Animation controller | 0.69 µs | 60 /s | 0.004 % |
+| Polar profile, 128 samples | 25.77 µs | 60 /s | 0.155 % |
+| Polar profile, 64 samples | 12.18 µs | 60 /s | 0.073 % |
+| Polar profile, 128, **dynamic** shape | 51.77 µs | 60 /s | 0.311 % |
+| Particle field, 160 particles | 18.23 µs | 60 /s | 0.109 % |
+| Palette sample (LUT) | 0.01 µs | — | ~0 % |
 
-| Stage | Approximate operations |
-|---|---|
-| Windowing | 1,024 multiplies |
-| Real FFT (512-point complex) | ~2,300 butterflies, ~23,000 flops |
-| Real-input unpacking | ~8,000 flops |
-| RMS + peak | 1,024 multiply-adds |
-| Band summation + 6 normalizers | ~600 flops |
-| Spectral centroid | ~1,000 flops |
-| Spectral flux | ~1,500 flops |
-| Envelopes, gate, normalizer | ~50 flops |
-| **Total** | **~36,000 flops per frame ≈ 3.4 Mflop/s** |
+**Render frame** (controller + 128-sample profile + 160 particles): **44.7 µs**, or
+0.27 % of a 16.67 ms frame. **Audio and render together: 0.39 % of one core.**
 
-That is on the order of a tenth of a percent of one modern phone core. Audio analysis is not
-where a visualizer becomes slow.
+### What the measurements changed
 
-`AnalyzerConfig.LevelOnly` removes the FFT, bands, centroid and flux, leaving ~2,000 flops per
-frame — worth having for the lowest tier of device, at the cost of band-driven deformation and
-flux-based onset detection.
+Three things were not what the operation counts suggested, and the benchmark is
+the only reason they are known:
 
-### Render, per frame
+**The geometry costs twice what the DSP does.** The polar profile at 128 samples
+is 25.8 µs against the analyzer's 13.4 µs. Audio analysis is *not* where a
+visualizer becomes slow, and the instinct to reach for a smaller FFT first is
+wrong — `sampleCount` and `turbulenceOctaves` are the CPU levers that matter.
+Each sample runs six Perlin evaluations, so the cost is linear in both.
 
-Default `OrganicBlobRenderer`: 128 samples, 2 + 4 field octaves, 6 bands, 2 interior contours.
+**A dynamic shape costs exactly double.** 51.8 µs against 25.8 µs, which is the
+predicted result of re-sampling the base outline every frame instead of caching
+it, now confirmed rather than assumed.
 
-| Stage | Approximate operations |
-|---|---|
-| Polar profile: 6 Perlin evaluations × 128 samples | ~54,000 flops |
-| Band harmonics (from tables) | ~2,300 flops |
-| Body spline: 128 cubic segments | ~2,000 flops |
-| 2 interior contours (1 Perlin each + spline) | ~22,000 flops |
-| Transcendental calls | ~20 |
-| **Total geometry** | **~80,000 flops per frame ≈ 4.8 Mflop/s at 60 fps** |
+**`LevelOnly` was barely cheaper than the full analyzer.** It dropped the FFT but
+kept a half-window hop, which doubled the analysis rate and cancelled most of the
+saving: 0.51 % of a core against the full analyzer's 0.62 %. Removing the overlap
+as well took it to 0.030 %. The preset was fixed; without a measurement it would
+have shipped as a performance option that did not improve performance.
 
-Beyond that the cost is **rasterisation**, which is device- and GPU-dependent and dominates:
-3 filled or stroked paths, 3–5 radial-gradient circles, and up to 160 small circles if the
-particle layer is enabled. Overdraw from the glow layers is the single largest GPU cost in the
-default configuration.
-
----
+A fourth finding was about the benchmark itself: the first version generated its
+test signal *inside* the timed loop, so 80 % of the reported analyzer cost was the
+eight-harmonic synthetic voice, not the analyzer. The corpus is now pre-generated.
 
 ## The dials, in order of impact
 
+CPU and GPU costs are separate problems and the orderings are different. Measure
+before choosing; on a phone the GPU list is usually the one that matters.
+
+**CPU** — measured above, in descending order:
+
+| Dial | Default | Cheaper | Measured effect | What you lose |
+|---|---|---|---|---|
+| Dynamic vs static `shape` | static | static | 51.8 → 25.8 µs | An outline that morphs |
+| `PolarProfileConfig.sampleCount` | 128 | 64 | 25.8 → 12.2 µs | Outline smoothness — the spline hides most of it |
+| `ParticleFieldConfig.capacity` | 160 | 48 or 0 | 18.2 µs → ~5 µs or 0 | Sparks |
+| `PolarProfileConfig.turbulenceOctaves` | 4 | 2 | ~ −7 µs | Fine surface detail |
+| `AnalyzerConfig.LevelOnly` | full | level-only | 13.4 → 3.2 µs | Bands, brightness, flux onsets |
+| `BlobRendererConfig.innerContours` | 2 | 0 | ~ −2 µs each | Interior secondary motion |
+
+**GPU** — not measured here, and dominant on mobile:
+
 | Dial | Default | Cheaper | What you lose |
 |---|---|---|---|
-| `BlobRendererConfig.glowLayers` | 3 | 1 | Halo smoothness — **the biggest GPU saving** (each layer is a full overdraw of a large circle) |
-| `ParticleAuraConfig.field.capacity` | 160 | 48 or 0 | Sparks; each particle is a draw call |
-| `BlobRendererConfig.innerContours` | 2 | 0 | Interior secondary motion; each is a full profile + spline |
-| `PolarProfileConfig.turbulenceOctaves` | 4 | 2 | Fine surface detail; linear in the profile loop |
-| `BlobRendererConfig.sampleCount` | 128 | 64 | Outline smoothness — the spline hides most of it |
-| `AnalyzerConfig.enableSpectrum` | true | false | Band deformation, brightness, flux onsets |
-| `AnalyzerConfig.fftSize` / `hopSize` | 1024 / 512 | 512 / 256 | Frequency resolution (and *halves* the hop, so raise the hop too if saving CPU) |
+| `BlobRendererConfig.glowLayers` | 3 | 1 | Halo smoothness. **The biggest GPU saving** — each layer is a full overdraw of a large circle |
+| `ParticleAuraConfig` particle count | 160 | 48 or 0 | Sparks; each is a draw call |
 | `BlobRendererConfig.drawSpecular` | true | false | The wet-surface highlight; one gradient circle |
+| `BlobRendererConfig.innerContours` | 2 | 0 | Interior motion; each is a stroked 128-segment path |
 
 Two ready-made tiers:
 

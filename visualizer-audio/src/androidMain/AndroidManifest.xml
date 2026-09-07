@@ -5,4 +5,12 @@
       manifest merging. The permission still has to be requested at runtime.
     -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!--
+      Required to attach to and disable the platform's AGC / noise suppression /
+      echo cancellation on the capture session. It is a normal permission,
+      granted at install with no prompt. Without it those calls throw and the
+      visualizer runs against a stream whose gain the OS is still adjusting.
+    -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 </manifest>

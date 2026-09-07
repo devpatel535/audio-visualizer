@@ -38,6 +38,10 @@ tasks.register("checkPortable") {
         ":visualizer-core:compileKotlinWasmJs",
         ":visualizer-audio:compileKotlinWasmJs",
         ":visualizer-compose:compileKotlinWasmJs",
+        // Compiles the Skia pixel test for Wasm. It cannot *run* here, but this
+        // proves every Compose API it uses exists, so the desktop run in CI
+        // fails for real reasons rather than for a wrong method name.
+        ":visualizer-compose:compileTestKotlinWasmJs",
         ":demo-app:compileKotlinWasmJs",
         // Rasterises the whole pipeline headlessly; a smoke test as well as a
         // way to eyeball a tuning change.
@@ -47,11 +51,21 @@ tasks.register("checkPortable") {
 
 tasks.register("checkAll") {
     group = "verification"
-    description = "Compiles every enabled target and runs the JVM unit tests."
+    description = "Compiles every enabled target and runs every test, Android included when it is on."
     dependsOn(
         "checkPortable",
         ":visualizer-audio:compileKotlinJvm",
         ":visualizer-compose:compileKotlinJvm",
         ":demo-app:compileKotlinJvm",
+        // Runs the Skia pixel tests and the shader compilation test for real.
+        // These need Compose's JVM artifacts, so they are outside `checkPortable`.
+        ":visualizer-compose:jvmTest",
     )
+    if (androidEnabled) {
+        // Assembling the demo transitively compiles all three library modules
+        // for Android and additionally covers manifest merging, resource
+        // compilation and packaging. One well-known task name rather than
+        // several guessed ones.
+        dependsOn(":demo-app:assembleDebug")
+    }
 }
