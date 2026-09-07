@@ -1,14 +1,25 @@
 // Applied from demo-app only when the Android target is enabled. See
-// gradle/android-library.gradle.kts for why this lives in its own script.
+// gradle/android-library.gradle.kts for why this lives in its own script and
+// why it needs its own buildscript block.
+import com.android.build.api.dsl.ApplicationExtension
 import org.gradle.api.artifacts.VersionCatalogsExtension
-import org.gradle.kotlin.dsl.configure
-import org.gradle.kotlin.dsl.getByType
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Keep in sync with `agp` in gradle/libs.versions.toml.
+        classpath("com.android.tools.build:gradle:8.7.3")
+    }
+}
 
 apply(plugin = "com.android.application")
 
 val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
 
-configure<com.android.build.gradle.internal.dsl.BaseAppModuleExtension> {
+extensions.configure<ApplicationExtension>("android") {
     namespace = "com.audioviz.demo"
     compileSdk = libs.findVersion("androidCompileSdk").get().requiredVersion.toInt()
     defaultConfig {
