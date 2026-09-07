@@ -217,7 +217,7 @@ preview-tool             headless Java2D renderer for the contact sheets above.
                          and in code review.
 ```
 
-**~9,600 lines of Kotlin**, of which ~1,800 are tests.
+**~9,800 lines of Kotlin**, of which ~2,000 are tests.
 
 ---
 
@@ -285,7 +285,7 @@ it stops responding exactly when the user is being most emphatic.
 ## Verification
 
 ```bash
-./gradlew checkPortable          # 52 tests + every Maven-Central-only target
+./gradlew checkPortable          # 54 tests + every Maven-Central-only target
 ./gradlew checkAll               # + desktop Compose, the Skia pixel tests, and Android
 ./gradlew :preview-tool:benchmarkCore   # measured throughput on this machine
 ```
@@ -295,6 +295,13 @@ additionally needs Google's Maven (for the `androidx` artifacts Compose's JVM an
 variants depend on) and, for the Android target, an SDK. Both run on every push — see
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml), which also uploads the contact sheets
 and the debug APK as build artifacts.
+
+54 tests run everywhere; 8 more — the Skia pixel tests and the shader compilation tests —
+need Compose's JVM artifacts and so run only in `checkAll`. CI is green on both jobs, which
+means the Android target compiles and packages to an APK, desktop Compose builds, the bundled
+SkSL compiles under real Skia, and every renderer has been rasterised and checked pixel by
+pixel. What CI cannot tell you is how any of it behaves on a real phone — see
+[docs/TESTING.md](docs/TESTING.md).
 
 The test suite is not incidental — it is how the tuning above is held in place:
 

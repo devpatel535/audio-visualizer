@@ -74,7 +74,7 @@ like speech.
 ## Automated
 
 ```bash
-./gradlew checkPortable   # 52 tests + every Maven-Central-only target
+./gradlew checkPortable   # 54 tests + every Maven-Central-only target
 ./gradlew checkAll        # + desktop Compose, the Skia pixel tests, and Android
 ```
 
