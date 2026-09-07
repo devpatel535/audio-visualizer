@@ -78,11 +78,21 @@ class RendererPixelTest {
         return params
     }
 
-    /** Draws one frame into a bitmap and returns it. */
+    /**
+     * Draws into a bitmap and returns it.
+     *
+     * @param warmupFrames frames drawn to throwaway bitmaps first. Stateful
+     *   renderers need this: the particle field emits fractionally and fades
+     *   each particle in over the first 15% of its life, so one frame yields a
+     *   single barely-visible speck — about 0.00006 of the mean luminance of a
+     *   320x320 canvas, which reads as blank. `ParticleWarmupTest` in
+     *   `visualizer-core` pins that behaviour.
+     */
     private fun render(
         renderer: ShapeRenderer,
         params: VisualParams,
         palette: VisualPalette = VisualPalette.OceanBlue,
+        warmupFrames: Int = 0,
     ): ImageBitmap {
         val bitmap = ImageBitmap(width, height)
         val canvas = Canvas(bitmap)
@@ -102,6 +112,14 @@ class RendererPixelTest {
         }
 
         renderer.onSurfaceChanged(size, 2f)
+
+        repeat(warmupFrames) {
+            val scratch = Canvas(ImageBitmap(width, height))
+            CanvasDrawScope().draw(density, LayoutDirection.Ltr, scratch, size) {
+                with(renderer) { render(frame) }
+            }
+        }
+
         CanvasDrawScope().draw(density, LayoutDirection.Ltr, canvas, size) {
             drawRect(color = renderPalette.background)
             with(renderer) { render(frame) }
@@ -157,7 +175,7 @@ class RendererPixelTest {
 
         val background = meanLuminance(render(EmptyRenderer, params))
         for ((name, renderer) in renderers) {
-            val luminance = meanLuminance(render(renderer, params))
+            val luminance = meanLuminance(render(renderer, params, warmupFrames = 40))
             assertTrue(
                 luminance > background + 0.002f,
                 "$name drew nothing (luminance $luminance vs background $background)",
