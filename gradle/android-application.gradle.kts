@@ -14,9 +14,11 @@ val android = extensions.getByName("android")
 android.assign("namespace", "com.audioviz.demo")
 android.assign("compileSdk", version("androidCompileSdk"))
 
-// The manifest and resources live at AGP's own default location, `src/main`,
-// so the Android source sets need no configuration. Kotlin sources stay in
-// `src/androidMain/kotlin` where the Kotlin Multiplatform plugin puts them.
+// The manifest and resources stay in `src/androidMain`. The Kotlin
+// Multiplatform plugin already points AGP's main source set there, so no source
+// set configuration is needed -- and moving them to AGP's own `src/main`
+// default is actively wrong, because KMP's path wins and the build then fails
+// with "property 'mainManifest' specifies file ... which doesn't exist".
 android.node("defaultConfig").let {
     it.assign("applicationId", "com.audioviz.demo")
     it.assign("minSdk", version("androidMinSdk"))
