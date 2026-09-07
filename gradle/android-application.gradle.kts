@@ -1,44 +1,34 @@
-// Applied from demo-app only when the Android target is enabled. See
-// gradle/android-library.gradle.kts for why this lives in its own script and
-// why it needs its own buildscript block.
-import com.android.build.api.dsl.ApplicationExtension
+// Applied from demo-app only when the Android target is enabled.
+// See gradle/android-common.gradle.kts for why the configuration is dynamic.
 import org.gradle.api.artifacts.VersionCatalogsExtension
-
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        // Keep in sync with `agp` in gradle/libs.versions.toml.
-        classpath("com.android.tools.build:gradle:8.7.3")
-    }
-}
 
 apply(plugin = "com.android.application")
 
-val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
+fun Any.node(name: String): Any = withGroovyBuilder { getProperty(name) }!!
+fun Any.assign(name: String, value: Any?) { withGroovyBuilder { setProperty(name, value) } }
 
-extensions.configure<ApplicationExtension>("android") {
-    namespace = "com.audioviz.demo"
-    compileSdk = libs.findVersion("androidCompileSdk").get().requiredVersion.toInt()
-    defaultConfig {
-        applicationId = "com.audioviz.demo"
-        minSdk = libs.findVersion("androidMinSdk").get().requiredVersion.toInt()
-        targetSdk = libs.findVersion("androidTargetSdk").get().requiredVersion.toInt()
-        versionCode = 1
-        versionName = "1.0.0"
-    }
-    sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")
-    sourceSets["main"].res.srcDirs("src/androidMain/res")
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-    buildTypes {
-        getByName("release") { isMinifyEnabled = false }
-    }
-    packaging {
-        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-    }
+val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
+fun version(alias: String) = libs.findVersion(alias).get().requiredVersion.toInt()
+
+val android = extensions.getByName("android")
+android.assign("namespace", "com.audioviz.demo")
+android.assign("compileSdk", version("androidCompileSdk"))
+
+// The manifest and resources live at AGP's own default location, `src/main`,
+// so the Android source sets need no configuration. Kotlin sources stay in
+// `src/androidMain/kotlin` where the Kotlin Multiplatform plugin puts them.
+android.node("defaultConfig").let {
+    it.assign("applicationId", "com.audioviz.demo")
+    it.assign("minSdk", version("androidMinSdk"))
+    it.assign("targetSdk", version("androidTargetSdk"))
+    it.assign("versionCode", 1)
+    it.assign("versionName", "1.0.0")
 }
+android.node("compileOptions").let {
+    it.assign("sourceCompatibility", JavaVersion.VERSION_17)
+    it.assign("targetCompatibility", JavaVersion.VERSION_17)
+}
+// kotlinx-coroutines ships duplicate licence files that break packaging.
+@Suppress("UNCHECKED_CAST")
+(android.node("packaging").node("resources").node("excludes") as MutableSet<String>)
+    .add("/META-INF/{AL2.0,LGPL2.1}")
